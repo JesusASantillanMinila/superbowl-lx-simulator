@@ -8,32 +8,21 @@ st.set_page_config(page_title="Super Bowl LX Simulator", layout="wide")
 
 @st.cache_data
 def load_nfl_metadata():
-    # 1. Fetch team descriptions
+    # 1. Fetch team descriptions for conference filtering
     teams = nfl.import_team_desc()
+    # Filter for active teams only (removing historic or defunct abbreviations)
     teams = teams[teams['team_conf'].isin(['AFC', 'NFC'])]
     
-    # 2. Fetch offseason win totals
+    # 2. Fetch offseason performance (using 2025 win totals as 2026 proxy)
     offseason = nfl.import_win_totals([2025])
     
-    # --- TROUBLESHOOTING / RENAMING ---
-    # Rename 'abbr' to 'team' if the API used 'abbr'
-    if 'abbr' in offseason.columns:
-        offseason = offseason.rename(columns={'abbr': 'team'})
-    
-    # Ensure 'line' exists (sometimes it might be called 'win_total')
-    if 'win_total' in offseason.columns and 'line' not in offseason.columns:
-        offseason = offseason.rename(columns={'win_total': 'line'})
-    
-    # Check if we actually have data now
-    if 'team' not in offseason.columns or 'line' not in offseason.columns:
-        st.error(f"Data Schema Error! Columns found: {offseason.columns.tolist()}")
-        return pd.DataFrame() # Return empty to prevent crash
-
-    # Merge
+    # Merge them to have conference and win totals in one place
+    # We use 'team_abbr' from descriptions and 'team' from win totals
     df = pd.merge(teams[['team_abbr', 'team_conf', 'team_name']], 
                   offseason[['team', 'line']], 
                   left_on='team_abbr', right_on='team')
     
+    # Calculate Momentum Factor (Normalized to league avg 8.5)
     df['momentum'] = df['line'] / 8.5
     return df
 
