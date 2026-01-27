@@ -4,7 +4,7 @@ import pandas as pd
 import nfl_data_py as nfl
 
 # --- CONFIG & DATA LOAD ---
-st.set_page_config(page_title="Super Bowl 60 Simulator", layout="wide")
+st.set_page_config(page_title="Super Bowl LX Simulator", layout="wide")
 
 @st.cache_data
 def load_nfl_metadata():
