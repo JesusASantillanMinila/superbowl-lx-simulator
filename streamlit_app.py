@@ -20,8 +20,9 @@ def load_nfl_metadata():
 
     team_performance['total_epa_calc'] = team_performance['passing_epa'] + team_performance['rushing_epa']
     
+    # MODIFIED: Added 'team_logo_wikipedia' to the merge
     df = pd.merge(
-        teams[['team_abbr', 'team_conf', 'team_name']], 
+        teams[['team_abbr', 'team_conf', 'team_name', 'team_logo_wikipedia']], 
         team_performance, 
         left_on='team_abbr', 
         right_on='team'
@@ -44,7 +45,6 @@ with st.expander("🛠️ Simulation Settings & Team Selection", expanded=True):
     afc_teams_df = data[data['team_conf'] == 'AFC'].sort_values('team_name')
     nfc_teams_df = data[data['team_conf'] == 'NFC'].sort_values('team_name')
 
-    # FIX 1: Improved logic to find indices for Patriots and Seahawks
     afc_list = afc_teams_df['team_name'].tolist()
     nfc_list = nfc_teams_df['team_name'].tolist()
     
@@ -60,7 +60,6 @@ with st.expander("🛠️ Simulation Settings & Team Selection", expanded=True):
 
     with col_a:
         st.markdown("**The Matchup**")
-        # Applying the default indices
         afc_choice = st.selectbox("Select AFC Champion", afc_list, index=pats_idx)
         nfc_choice = st.selectbox("Select NFC Champion", nfc_list, index=sea_idx)
         
@@ -105,19 +104,15 @@ def run_simulation(iterations):
 if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
     afc_res, nfc_res = run_simulation(sim_count)
     
-    # 1. Identify raw wins and ties
     afc_raw_wins = (afc_res > nfc_res)
     nfc_raw_wins = (nfc_res > afc_res)
     ties = (afc_res == nfc_res)
     
-    # 2. Calculate a "Strength Weight"
     total_momentum = afc_mod + nfc_mod
     afc_weight = afc_mod / total_momentum
     
-    # 3. Resolve ties
     tie_breaker = np.random.random(sim_count) < afc_weight
     
-    # 4. Final Win Totals
     afc_final_wins = afc_raw_wins | (ties & tie_breaker)
     nfc_final_wins = nfc_raw_wins | (ties & ~tie_breaker)
     
@@ -129,8 +124,13 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
         st.subheader("Win Probability")
         
         l_col, c_col, r_col = st.columns([2, 1, 2])
-        l_col.markdown(f"<p style='text-align: right;'><b>{afc_choice}</b> ({afc_win_pct:.1f}%)</p>", unsafe_allow_html=True)
-        c_col.markdown("<p style='text-align: center;'>vs</p>", unsafe_allow_html=True)
+        # Display logos in the Win Probability section
+        l_col.image(afc_logo_url, width=50)
+        l_col.markdown(f"<p style='text-align: left;'><b>{afc_choice}</b> ({afc_win_pct:.1f}%)</p>", unsafe_allow_html=True)
+        
+        c_col.markdown("<h3 style='text-align: center; margin-top: 20px;'>VS</h3>", unsafe_allow_html=True)
+        
+        r_col.image(nfc_logo_url, width=50)
         r_col.markdown(f"<p style='text-align: left;'><b>{nfc_choice}</b> ({nfc_win_pct:.1f}%)</p>", unsafe_allow_html=True)
         
         st.markdown(f"""
@@ -138,9 +138,6 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
                 <div style="width: {afc_win_pct}%; background-color: #003366; height: 25px; border-right: 2px solid white;"></div>
                 <div style="width: {nfc_win_pct}%; background-color: #C60C30; height: 25px;"></div>
             </div>
-            <p style='font-size: 11px; color: gray; margin-top: 5px; text-align: center;'>
-                Blue: {afc_choice} | Red: {nfc_choice}
-            </p>
         """, unsafe_allow_html=True)
 
     with col2:
@@ -157,7 +154,6 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
     spread_data = pd.Series(spreads).value_counts().sort_index().reset_index()
     spread_data.columns = ['Point Spread', 'Frequency']
     
-    # Using st.bar_chart with the explicit 'color' hex code to match the progress bar
     st.bar_chart(
         spread_data.set_index('Point Spread'), 
         color="#003366", 
