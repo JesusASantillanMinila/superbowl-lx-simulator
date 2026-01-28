@@ -57,15 +57,17 @@ with st.expander("🛠️ Simulation Settings & Team Selection", expanded=True):
         sea_idx = nfc_list.index('Seattle Seahawks')
     except ValueError:
         sea_idx = 0
-
-# --- Team Logos ---
-    afc_logo_url = afc_teams_df[afc_teams_df['team_name'] == afc_choice]['team_logo_wikipedia'].values[0]
-    nfc_logo_url = nfc_teams_df[nfc_teams_df['team_name'] == nfc_choice]['team_logo_wikipedia'].values[0]
     
     with col_a:
         st.markdown("**The Matchup**")
         afc_choice = st.selectbox("Select AFC Champion", afc_list, index=pats_idx)
         nfc_choice = st.selectbox("Select NFC Champion", nfc_list, index=sea_idx)
+
+        # --- Team Logos ---
+        afc_logo_url = afc_teams_df[afc_teams_df['team_name'] == afc_choice]['team_logo_wikipedia'].values[0]
+        nfc_logo_url = nfc_teams_df[nfc_teams_df['team_name'] == nfc_choice]['team_logo_wikipedia'].values[0]
+     
+        
         
         st.divider()
         st.markdown("**Strategy**")
