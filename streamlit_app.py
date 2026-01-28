@@ -50,27 +50,29 @@ with st.expander("🛠️ Simulation Settings & Team Selection", expanded=True):
         nfc_choice = st.selectbox("Select NFC Champion", nfc_teams_df['team_name'])
         
         st.divider()
-        st.markdown("**Game State**")
-        score_afc = st.number_input(f"{afc_choice} Current Score", 0, 100, 0)
-        score_nfc = st.number_input(f"{nfc_choice} Current Score", 0, 100, 0)
-        time_left = st.slider("Minutes Remaining", 1, 60, 60)
-
-    with col_b:
-        st.markdown("**Environment**")
-        weather = st.selectbox("Weather Conditions", ["Clear/Dome", "Rain/Wind", "Snow"])
-        weather_map = {"Clear/Dome": 1.0, "Rain/Wind": 0.85, "Snow": 0.75}
-        
-        st.divider()
         st.markdown("**Strategy**")
         strat_map = {"Defensive": 0.90, "Balanced": 1.0, "Offensive": 1.10}
         afc_strat = st.select_slider(f"{afc_choice} Strategy", options=["Defensive", "Balanced", "Offensive"], value="Balanced")
         nfc_strat = st.select_slider(f"{nfc_choice} Strategy", options=["Defensive", "Balanced", "Offensive"], value="Balanced")
 
+    with col_b:
+        st.markdown("**Game State**")
+        score_afc = st.number_input(f"{afc_choice} Current Score", 0, 100, 0)
+        score_nfc = st.number_input(f"{nfc_choice} Current Score", 0, 100, 0)
+        time_left = st.slider("Minutes Remaining", 1, 60, 60)
+        
+        # st.divider()
+    
     with col_c:
         st.markdown("**Injury Report**")
         inj_map = {"None": 0.0, "Role": 0.03, "Starter": 0.07, "Star": 0.15, "Elite": 0.30}
         afc_inj_lvl = st.select_slider(f"{afc_choice} Injuries", options=["None", "Role", "Starter", "Star", "Elite"])
         nfc_inj_lvl = st.select_slider(f"{nfc_choice} Injuries", options=["None", "Role", "Starter", "Star", "Elite"])
+
+        st.divider()
+        st.markdown("**Environment**")
+        weather = st.selectbox("Weather Conditions", ["Clear/Dome", "Rain/Wind", "Snow"])
+        weather_map = {"Clear/Dome": 1.0, "Rain/Wind": 0.85, "Snow": 0.75}
 
 afc_mod = afc_teams_df[afc_teams_df['team_name'] == afc_choice]['momentum'].values[0]
 nfc_mod = nfc_teams_df[nfc_teams_df['team_name'] == nfc_choice]['momentum'].values[0]
