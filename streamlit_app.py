@@ -133,14 +133,14 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
         c_col.markdown("<p style='text-align: center;'>vs</p>", unsafe_allow_html=True)
         r_col.markdown(f"<p style='text-align: left;'><b>{nfc_choice}</b> ({nfc_win_pct:.1f}%)</p>", unsafe_allow_html=True)
         
-        # Updated to use Dark Blue (#003366) for both sides of the progress bar
-        # with a thin white divider to distinguish the two teams
         st.markdown(f"""
-            <div style="width: 100%; background-color: #002244; border-radius: 5px; height: 25px; display: flex; overflow: hidden; border: 1px solid #003366;">
+            <div style="width: 100%; background-color: #eee; border-radius: 5px; height: 25px; display: flex; overflow: hidden; border: 1px solid #ddd;">
                 <div style="width: {afc_win_pct}%; background-color: #003366; height: 25px; border-right: 2px solid white;"></div>
-                <div style="width: {nfc_win_pct}%; background-color: #003366; height: 25px;"></div>
+                <div style="width: {nfc_win_pct}%; background-color: #C60C30; height: 25px;"></div>
             </div>
-            <p style='font-size: 11px; color: gray; margin-top: 5px; text-align: center;'>Dark Blue: Both Teams Probability (Split at Win/Loss Margin)</p>
+            <p style='font-size: 11px; color: gray; margin-top: 5px; text-align: center;'>
+                Blue: {afc_choice} | Red: {nfc_choice}
+            </p>
         """, unsafe_allow_html=True)
 
     with col2:
