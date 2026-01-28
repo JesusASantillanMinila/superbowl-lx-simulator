@@ -1,43 +1,43 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-import nflreadpy as nfl
+import nflreadpy as nfl  # Switched to nflreadpy
 
 # --- CONFIG & DATA LOAD ---
 st.set_page_config(page_title="Super Bowl LX Simulator", layout="wide")
 
 @st.cache_data
 def load_nfl_metadata():
-    # 1. Fetch team metadata (equivalent to import_team_desc)
-    # nflreadpy returns pandas DataFrames by default
-    teams = nfl.load_teams()
+    # 1. Fetch team descriptions for conference filtering
+    # Convert Polars to Pandas immediately
+    teams = nfl.load_teams().to_pandas()
+    
+    # Filter for active teams only
     teams = teams[teams['team_conf'].isin(['AFC', 'NFC'])]
     
-    # 2. Fetch historical team stats for 2024 as a proxy for 2025/2026 performance
-    # load_team_stats provides comprehensive seasonal data
-    stats = nfl.load_team_stats(seasons=[2024])
+    # 2. Use load_team_stats to obtain historical data
+    # We'll take the most recent full season (2024) to calculate momentum
+    stats = nfl.load_team_stats([2024]).to_pandas()
     
-    # Calculate a strength metric (Point Differential per game)
-    # We'll use this to calculate our 'momentum' factor
-    stats['pt_diff'] = (stats['score'] - stats['opp_score'])
-    
-    # Aggregate stats by team
-    team_strength = stats.groupby('team').agg({
-        'pt_diff': 'mean'
+    # Calculate a "Momentum" proxy: (Total EPA / League Average EPA) + (Win Rate)
+    # This replaces the win_totals logic from the previous library
+    team_performance = stats.groupby('team').agg({
+        'total_epa': 'mean',
+        'season_win_pts': 'sum' 
     }).reset_index()
 
-    # 3. Merge metadata with historical performance
+    # Merge stats with metadata
     df = pd.merge(
         teams[['team_abbr', 'team_conf', 'team_name']], 
-        team_strength, 
+        team_performance, 
         left_on='team_abbr', 
         right_on='team'
     )
     
-    # Calculate Momentum Factor (Normalized: Average team = 1.0)
-    # We shift the point diff so the worst team isn't 0, then normalize
-    min_diff = df['pt_diff'].min()
-    df['momentum'] = (df['pt_diff'] - min_diff + 5) / (df['pt_diff'].mean() - min_diff + 5)
+    # Normalize momentum (Scaling EPA to a usable multiplier around 1.0)
+    # We use a simple shift and scale so that better teams have > 1.0
+    epa_min = df['total_epa'].min()
+    df['momentum'] = (df['total_epa'] - epa_min) / (df['total_epa'].max() - epa_min) + 0.5
     
     return df
 
@@ -75,13 +75,12 @@ def run_simulation():
     iterations = 10000
     base_ppm = 0.45 
     
-    # Multipliers apply to the scoring rates
+    # Multipliers applying momentum and injury logic
     afc_final_rate = base_ppm * afc_mod * (1 - inj_map[off_inj] + inj_map[def_inj])
     nfc_final_rate = base_ppm * nfc_mod * (1 - inj_map[off_inj] + inj_map[def_inj])
     
-    # Monte Carlo simulation using Poisson distribution
-    afc_sim = score_afc + np.random.poisson(max(0, afc_final_rate * time_left), iterations)
-    nfc_sim = score_nfc + np.random.poisson(max(0, nfc_final_rate * time_left), iterations)
+    afc_sim = score_afc + np.random.poisson(afc_final_rate * time_left, iterations)
+    nfc_sim = score_nfc + np.random.poisson(nfc_final_rate * time_left, iterations)
     
     return afc_sim, nfc_sim
 
