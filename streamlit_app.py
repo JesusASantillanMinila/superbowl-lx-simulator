@@ -120,34 +120,41 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
     afc_win_pct = afc_final_wins.mean() * 100
     nfc_win_pct = nfc_final_wins.mean() * 100
 
-    # --- COMBINED RESULTS SECTION ---
+    # --- CONSOLIDATED SECTION ---
     st.markdown("### 🏟️ Matchup Forecast")
     
-    # Dashboard-style Scoreboard
     res_col1, res_col_vs, res_col2 = st.columns([2, 1, 2])
     
     with res_col1:
-        st.image(afc_logo_url, width=80)
-        st.metric(label=f"{afc_choice} Win Prob", value=f"{afc_win_pct:.1f}%")
-        st.metric(label="Projected Score", value=f"{afc_res.mean():.1f}")
+        # Right-aligning all content to push it toward the VS
+        st.markdown(f"""
+            <div style="text-align: right;">
+                <img src="{afc_logo_url}" width="100">
+                <h2 style="margin: 0;">{afc_choice}</h2>
+                <p style="font-size: 24px; margin: 0;"><b>Projected Score: {afc_res.mean():.1f}</b></p>
+                <p style="font-size: 18px; color: #555;">Win Probability: {afc_win_pct:.1f}%</p>
+            </div>
+        """, unsafe_allow_html=True)
         
     with res_col_vs:
-        st.markdown("<h1 style='text-align: center; margin-top: 50px; color: #888;'>VS</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; margin-top: 60px; color: #888;'>VS</h1>", unsafe_allow_html=True)
         
     with res_col2:
-        st.image(nfc_logo_url, width=80)
-        st.metric(label=f"{nfc_choice} Win Prob", value=f"{nfc_win_pct:.1f}%")
-        st.metric(label="Projected Score", value=f"{nfc_res.mean():.1f}")
+        # Standard left-align for the opponent
+        st.markdown(f"""
+            <div style="text-align: left;">
+                <img src="{nfc_logo_url}" width="100">
+                <h2 style="margin: 0;">{nfc_choice}</h2>
+                <p style="font-size: 24px; margin: 0;"><b>Projected Score: {nfc_res.mean():.1f}</b></p>
+                <p style="font-size: 18px; color: #555;">Win Probability: {nfc_win_pct:.1f}%</p>
+            </div>
+        """, unsafe_allow_html=True)
 
-    # Probability Bar
+    # Clean Progress Bar (No Text)
     st.markdown(f"""
-        <div style="width: 100%; background-color: #eee; border-radius: 10px; height: 30px; display: flex; overflow: hidden; border: 1px solid #ddd; margin-top: 20px;">
-            <div style="width: {afc_win_pct}%; background-color: #003366; color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold;">
-                {afc_win_pct:.0f}%
-            </div>
-            <div style="width: {nfc_win_pct}%; background-color: #C60C30; color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold;">
-                {nfc_win_pct:.0f}%
-            </div>
+        <div style="width: 100%; background-color: #eee; border-radius: 10px; height: 15px; display: flex; overflow: hidden; border: 1px solid #ddd; margin-top: 25px; margin-bottom: 10px;">
+            <div style="width: {afc_win_pct}%; background-color: #003366;"></div>
+            <div style="width: {nfc_win_pct}%; background-color: #C60C30;"></div>
         </div>
     """, unsafe_allow_html=True)
 
