@@ -35,27 +35,34 @@ def load_nfl_metadata():
 
 data = load_nfl_metadata()
 
-st.title("🏈 Super Bowl LX: Advanced Simulator")
+st.title(" 🏈 Super Bowl LX: Advanced Simulator")
 
-# --- 1) TOP EXPANDER (FORMER SIDEBAR) ---
+# --- 1) TOP EXPANDER ---
 with st.expander("🛠️ Simulation Settings & Team Selection", expanded=True):
     col_a, col_b, col_c = st.columns(3)
     
     afc_teams_df = data[data['team_conf'] == 'AFC'].sort_values('team_name')
     nfc_teams_df = data[data['team_conf'] == 'NFC'].sort_values('team_name')
 
-    # Logic to find the index of Patriots and Seahawks for defaults
+    # FIX 1: Improved logic to find indices for Patriots and Seahawks
+    afc_list = afc_teams_df['team_name'].tolist()
+    nfc_list = nfc_teams_df['team_name'].tolist()
+    
     try:
-        pats_idx = afc_teams_df.get_loc(afc_teams_df[afc_teams_df['team_name'] == 'New England Patriots'].index[0])
-        sea_idx = nfc_teams_df.get_loc(nfc_teams_df[nfc_teams_df['team_name'] == 'Seattle Seahawks'].index[0])
-    except:
-        pats_idx, sea_idx = 0, 0 # Fallback if names don't match exactly
+        pats_idx = afc_list.index('New England Patriots')
+    except ValueError:
+        pats_idx = 0
+        
+    try:
+        sea_idx = nfc_list.index('Seattle Seahawks')
+    except ValueError:
+        sea_idx = 0
 
     with col_a:
         st.markdown("**The Matchup**")
-        # 1) Make Patriots and Seahawks default
-        afc_choice = st.selectbox("Select AFC Champion", afc_teams_df['team_name'], index=int(pats_idx))
-        nfc_choice = st.selectbox("Select NFC Champion", nfc_teams_df['team_name'], index=int(sea_idx))
+        # Applying the default indices
+        afc_choice = st.selectbox("Select AFC Champion", afc_list, index=pats_idx)
+        nfc_choice = st.selectbox("Select NFC Champion", nfc_list, index=sea_idx)
         
         st.divider()
         st.markdown("**Strategy**")
@@ -79,7 +86,6 @@ with st.expander("🛠️ Simulation Settings & Team Selection", expanded=True):
         st.markdown("**Environment**")
         weather = st.selectbox("Weather Conditions", ["Clear/Dome", "Rain/Wind", "Snow"])
         weather_map = {"Clear/Dome": 1.0, "Rain/Wind": 0.85, "Snow": 0.75}
-        # 3) Simulation control modifier
         sim_count = st.select_slider("Simulations to Run", options=[1000, 5000, 10000, 25000, 50000], value=10000)
 
 afc_mod = afc_teams_df[afc_teams_df['team_name'] == afc_choice]['momentum'].values[0]
@@ -88,13 +94,11 @@ nfc_mod = nfc_teams_df[nfc_teams_df['team_name'] == nfc_choice]['momentum'].valu
 # --- SIMULATION ENGINE ---
 def run_simulation(iterations):
     base_ppm = 0.45 * weather_map[weather]
-    
     afc_final_rate = base_ppm * afc_mod * strat_map[afc_strat] * (1 - inj_map[afc_inj_lvl])
     nfc_final_rate = base_ppm * nfc_mod * strat_map[nfc_strat] * (1 - inj_map[nfc_inj_lvl])
     
     afc_sim = score_afc + np.random.poisson(afc_final_rate * time_left, iterations)
     nfc_sim = score_nfc + np.random.poisson(nfc_final_rate * time_left, iterations)
-    
     return afc_sim, nfc_sim
 
 # --- UI RESULTS ---
@@ -108,13 +112,19 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
     with col1:
         st.subheader("Win Probability")
         
-        # 2) Aligned Labels: Team 1 (Right), vs (Center), Team 2 (Left)
         l_col, c_col, r_col = st.columns([2, 1, 2])
         l_col.markdown(f"<p style='text-align: right;'><b>{afc_choice}</b> ({afc_win_pct:.1f}%)</p>", unsafe_allow_html=True)
         c_col.markdown("<p style='text-align: center;'>vs</p>", unsafe_allow_html=True)
         r_col.markdown(f"<p style='text-align: left;'><b>{nfc_choice}</b> ({nfc_win_pct:.1f}%)</p>", unsafe_allow_html=True)
         
-        st.progress(afc_win_pct / 100)
+        # FIX 2: Custom Red and Blue Progress Bar using CSS
+        st.markdown(f"""
+            <div style="width: 100%; background-color: #003366; border-radius: 5px; height: 25px;">
+                <div style="width: {afc_win_pct}%; background-color: #C60C30; height: 25px; border-radius: 5px 0 0 5px; text-align: center; color: white; line-height: 25px;">
+                </div>
+            </div>
+            <p style='font-size: 10px; color: gray; margin-top: 5px;'>Red: {afc_choice} | Blue: {nfc_choice}</p>
+        """, unsafe_allow_html=True)
 
     with col2:
         st.subheader("Projected Final Score")
@@ -123,12 +133,10 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
         m_col2.metric(nfc_choice, f"{nfc_res.mean():.1f}")
 
     st.divider()
-    
     st.subheader("Point Spread Distribution")
     st.info(f"Positive values favor {afc_choice}, negative values favor {nfc_choice}.")
     
     spreads = afc_res - nfc_res
     spread_data = pd.Series(spreads).value_counts().sort_index().reset_index()
     spread_data.columns = ['Point Spread', 'Frequency']
-    
     st.area_chart(spread_data.set_index('Point Spread'))
