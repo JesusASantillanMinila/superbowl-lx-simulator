@@ -105,9 +105,26 @@ def run_simulation(iterations):
 if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
     afc_res, nfc_res = run_simulation(sim_count)
     
-    col1, col2 = st.columns(2)
-    afc_win_pct = (afc_res > nfc_res).mean() * 100
-    nfc_win_pct = (nfc_res > afc_res).mean() * 100
+    # 1. Identify raw wins and ties
+    afc_raw_wins = (afc_res > nfc_res)
+    nfc_raw_wins = (nfc_res > afc_res)
+    ties = (afc_res == nfc_res)
+    
+    # 2. Calculate a "Strength Weight" based on their season performance (EPA Momentum)
+    # This ensures the better team has a higher chance to win the "Overtime" tie-breaker
+    total_momentum = afc_mod + nfc_mod
+    afc_weight = afc_mod / total_momentum
+    
+    # 3. Resolve ties using the weighted probability
+    # np.random.random generates a float between 0 and 1
+    tie_breaker = np.random.random(sim_count) < afc_weight
+    
+    # 4. Final Win Totals (Raw wins + Ties won via tie-breaker)
+    afc_final_wins = afc_raw_wins | (ties & tie_breaker)
+    nfc_final_wins = nfc_raw_wins | (ties & ~tie_breaker)
+    
+    afc_win_pct = afc_final_wins.mean() * 100
+    nfc_win_pct = nfc_final_wins.mean() * 100
     
     with col1:
         st.subheader("Win Probability")
