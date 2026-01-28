@@ -8,25 +8,29 @@ st.set_page_config(page_title="Super Bowl LX Simulator", layout="wide")
 
 @st.cache_data
 def load_nfl_metadata():
-    # 1. Fetch team descriptions for conference filtering
-    # Convert Polars to Pandas immediately
+    # 1. Fetch team descriptions
     teams = nfl.load_teams().to_pandas()
-    
-    # Filter for active teams only
     teams = teams[teams['team_conf'].isin(['AFC', 'NFC'])]
     
-    # 2. Use load_team_stats to obtain historical data
-    # We'll take the most recent full season (2024) to calculate momentum
+    # 2. Fetch detailed team stats (using 2024 as the baseline)
     stats = nfl.load_team_stats([2024]).to_pandas()
     
-    # Calculate a "Momentum" proxy: (Total EPA / League Average EPA) + (Win Rate)
-    # This replaces the win_totals logic from the previous library
+    # 3. Aggregate performance using the specific columns provided
+    # We'll create a 'total_efficiency' metric from passing and rushing EPA
     team_performance = stats.groupby('team').agg({
-        'total_epa': 'mean',
-        'season_win_pts': 'sum' 
+        'passing_epa': 'sum',
+        'rushing_epa': 'sum',
+        'passing_yards': 'sum',
+        'rushing_yards': 'sum',
+        'passing_tds': 'sum',
+        'rushing_tds': 'sum'
     }).reset_index()
 
-    # Merge stats with metadata
+    # Create a combined metric for Momentum
+    # Total EPA = Passing EPA + Rushing EPA
+    team_performance['total_epa_calc'] = team_performance['passing_epa'] + team_performance['rushing_epa']
+    
+    # Merge with team metadata
     df = pd.merge(
         teams[['team_abbr', 'team_conf', 'team_name']], 
         team_performance, 
@@ -34,13 +38,16 @@ def load_nfl_metadata():
         right_on='team'
     )
     
-    # Normalize momentum (Scaling EPA to a usable multiplier around 1.0)
-    # We use a simple shift and scale so that better teams have > 1.0
-    epa_min = df['total_epa'].min()
-    df['momentum'] = (df['total_epa'] - epa_min) / (df['total_epa'].max() - epa_min) + 0.5
+    # --- MOMENTUM CALCULATION ---
+    # We normalize the calculated EPA so the league average is roughly 1.0
+    # Teams with higher EPA (more efficient scoring) get a higher multiplier
+    epa_min = df['total_epa_calc'].min()
+    epa_max = df['total_epa_calc'].max()
+    
+    # This scales the worst team to ~0.7 and the best team to ~1.3
+    df['momentum'] = ((df['total_epa_calc'] - epa_min) / (epa_max - epa_min)) * 0.6 + 0.7
     
     return df
-
 data = load_nfl_metadata()
 
 st.title("🏈 Super Bowl LX: Conference-Locked Simulator")
