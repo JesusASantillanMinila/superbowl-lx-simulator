@@ -1,40 +1,49 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-import nflreadpy as nfl 
+import nflreadpy as nfl
 
 # --- CONFIG & DATA LOAD ---
 st.set_page_config(page_title="Super Bowl LX Simulator", layout="wide")
 
 @st.cache_data
 def load_nfl_metadata():
-    # 1. Fetch team descriptions
-    # nflreadpy uses load_teams() and returns Polars; we convert to Pandas
-    teams = nfl.load_teams().to_pandas()
-    
-    # Filter for active teams only
+    # 1. Fetch team metadata (equivalent to import_team_desc)
+    # nflreadpy returns pandas DataFrames by default
+    teams = nfl.load_teams()
     teams = teams[teams['team_conf'].isin(['AFC', 'NFC'])]
     
-    # 2. Fetch win totals (uses load_win_totals)
-    offseason = nfl.load_win_totals(seasons=[2025]).to_pandas()
+    # 2. Fetch historical team stats for 2024 as a proxy for 2025/2026 performance
+    # load_team_stats provides comprehensive seasonal data
+    stats = nfl.load_team_stats(seasons=[2024])
     
-    # Merge logic
+    # Calculate a strength metric (Point Differential per game)
+    # We'll use this to calculate our 'momentum' factor
+    stats['pt_diff'] = (stats['score'] - stats['opp_score'])
+    
+    # Aggregate stats by team
+    team_strength = stats.groupby('team').agg({
+        'pt_diff': 'mean'
+    }).reset_index()
+
+    # 3. Merge metadata with historical performance
     df = pd.merge(
         teams[['team_abbr', 'team_conf', 'team_name']], 
-        offseason[['team', 'line']], 
+        team_strength, 
         left_on='team_abbr', 
         right_on='team'
     )
     
-    # Calculate Momentum Factor
-    df['momentum'] = df['line'] / 8.5
+    # Calculate Momentum Factor (Normalized: Average team = 1.0)
+    # We shift the point diff so the worst team isn't 0, then normalize
+    min_diff = df['pt_diff'].min()
+    df['momentum'] = (df['pt_diff'] - min_diff + 5) / (df['pt_diff'].mean() - min_diff + 5)
+    
     return df
 
 data = load_nfl_metadata()
 
-# --- UI HEADER ---
 st.title("🏈 Super Bowl LX: Conference-Locked Simulator")
-st.markdown("Powered by `nflreadpy` for real-time data ingestion.")
 
 # --- SIDEBAR: TEAM SELECTION ---
 st.sidebar.header("🏆 The Matchup")
@@ -66,11 +75,13 @@ def run_simulation():
     iterations = 10000
     base_ppm = 0.45 
     
+    # Multipliers apply to the scoring rates
     afc_final_rate = base_ppm * afc_mod * (1 - inj_map[off_inj] + inj_map[def_inj])
     nfc_final_rate = base_ppm * nfc_mod * (1 - inj_map[off_inj] + inj_map[def_inj])
     
-    afc_sim = score_afc + np.random.poisson(afc_final_rate * time_left, iterations)
-    nfc_sim = score_nfc + np.random.poisson(nfc_final_rate * time_left, iterations)
+    # Monte Carlo simulation using Poisson distribution
+    afc_sim = score_afc + np.random.poisson(max(0, afc_final_rate * time_left), iterations)
+    nfc_sim = score_nfc + np.random.poisson(max(0, nfc_final_rate * time_left), iterations)
     
     return afc_sim, nfc_sim
 
