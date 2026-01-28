@@ -125,7 +125,8 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
     
     afc_win_pct = afc_final_wins.mean() * 100
     nfc_win_pct = nfc_final_wins.mean() * 100
-    
+
+    col1, col2 = st.columns(2)
     with col1:
         st.subheader("Win Probability")
         
