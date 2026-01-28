@@ -110,16 +110,14 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
     nfc_raw_wins = (nfc_res > afc_res)
     ties = (afc_res == nfc_res)
     
-    # 2. Calculate a "Strength Weight" based on their season performance (EPA Momentum)
-    # This ensures the better team has a higher chance to win the "Overtime" tie-breaker
+    # 2. Calculate a "Strength Weight"
     total_momentum = afc_mod + nfc_mod
     afc_weight = afc_mod / total_momentum
     
-    # 3. Resolve ties using the weighted probability
-    # np.random.random generates a float between 0 and 1
+    # 3. Resolve ties
     tie_breaker = np.random.random(sim_count) < afc_weight
     
-    # 4. Final Win Totals (Raw wins + Ties won via tie-breaker)
+    # 4. Final Win Totals
     afc_final_wins = afc_raw_wins | (ties & tie_breaker)
     nfc_final_wins = nfc_raw_wins | (ties & ~tie_breaker)
     
@@ -135,13 +133,14 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
         c_col.markdown("<p style='text-align: center;'>vs</p>", unsafe_allow_html=True)
         r_col.markdown(f"<p style='text-align: left;'><b>{nfc_choice}</b> ({nfc_win_pct:.1f}%)</p>", unsafe_allow_html=True)
         
-        # FIX 2: Custom Red and Blue Progress Bar using CSS
+        # Updated to use Dark Blue (#003366) for both sides of the progress bar
+        # with a thin white divider to distinguish the two teams
         st.markdown(f"""
-            <div style="width: 100%; background-color: #003366; border-radius: 5px; height: 25px;">
-                <div style="width: {afc_win_pct}%; background-color: #C60C30; height: 25px; border-radius: 5px 0 0 5px; text-align: center; color: white; line-height: 25px;">
-                </div>
+            <div style="width: 100%; background-color: #002244; border-radius: 5px; height: 25px; display: flex; overflow: hidden; border: 1px solid #003366;">
+                <div style="width: {afc_win_pct}%; background-color: #003366; height: 25px; border-right: 2px solid white;"></div>
+                <div style="width: {nfc_win_pct}%; background-color: #003366; height: 25px;"></div>
             </div>
-            <p style='font-size: 10px; color: gray; margin-top: 5px;'>Red: {afc_choice} | Blue: {nfc_choice}</p>
+            <p style='font-size: 11px; color: gray; margin-top: 5px; text-align: center;'>Dark Blue: Both Teams Probability (Split at Win/Loss Margin)</p>
         """, unsafe_allow_html=True)
 
     with col2:
@@ -157,4 +156,10 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
     spreads = afc_res - nfc_res
     spread_data = pd.Series(spreads).value_counts().sort_index().reset_index()
     spread_data.columns = ['Point Spread', 'Frequency']
-    st.area_chart(spread_data.set_index('Point Spread'))
+    
+    # Using st.bar_chart with the explicit 'color' hex code to match the progress bar
+    st.bar_chart(
+        spread_data.set_index('Point Spread'), 
+        color="#003366", 
+        use_container_width=True
+    )
