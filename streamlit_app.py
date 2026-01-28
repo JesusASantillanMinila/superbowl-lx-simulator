@@ -20,7 +20,6 @@ def load_nfl_metadata():
 
     team_performance['total_epa_calc'] = team_performance['passing_epa'] + team_performance['rushing_epa']
     
-    # MODIFIED: Added 'team_logo_wikipedia' to the merge
     df = pd.merge(
         teams[['team_abbr', 'team_conf', 'team_name', 'team_logo_wikipedia']], 
         team_performance, 
@@ -63,11 +62,9 @@ with st.expander("🛠️ Simulation Settings & Team Selection", expanded=True):
         afc_choice = st.selectbox("Select AFC Champion", afc_list, index=pats_idx)
         nfc_choice = st.selectbox("Select NFC Champion", nfc_list, index=sea_idx)
 
-        # --- Team Logos ---
+        # --- Team Logos ---        
         afc_logo_url = afc_teams_df[afc_teams_df['team_name'] == afc_choice]['team_logo_wikipedia'].values[0]
         nfc_logo_url = nfc_teams_df[nfc_teams_df['team_name'] == nfc_choice]['team_logo_wikipedia'].values[0]
-     
-        
         
         st.divider()
         st.markdown("**Strategy**")
@@ -118,39 +115,42 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
     afc_weight = afc_mod / total_momentum
     
     tie_breaker = np.random.random(sim_count) < afc_weight
-    
     afc_final_wins = afc_raw_wins | (ties & tie_breaker)
     nfc_final_wins = nfc_raw_wins | (ties & ~tie_breaker)
     
     afc_win_pct = afc_final_wins.mean() * 100
     nfc_win_pct = nfc_final_wins.mean() * 100
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Win Probability")
+    # --- COMBINED RESULTS SECTION ---
+    st.markdown("### 🏟️ Matchup Forecast")
+    
+    # Dashboard-style Scoreboard
+    res_col1, res_col_vs, res_col2 = st.columns([2, 1, 2])
+    
+    with res_col1:
+        st.image(afc_logo_url, width=80)
+        st.metric(label=f"{afc_choice} Win Prob", value=f"{afc_win_pct:.1f}%")
+        st.metric(label="Projected Score", value=f"{afc_res.mean():.1f}")
         
-        l_col, c_col, r_col = st.columns([2, 1, 2])
-        # Display logos in the Win Probability section
-        l_col.image(afc_logo_url, width=50)
-        l_col.markdown(f"<p style='text-align: left;'><b>{afc_choice}</b> ({afc_win_pct:.1f}%)</p>", unsafe_allow_html=True)
+    with res_col_vs:
+        st.markdown("<h1 style='text-align: center; margin-top: 50px; color: #888;'>VS</h1>", unsafe_allow_html=True)
         
-        c_col.markdown("<h3 style='text-align: center; margin-top: 20px;'>VS</h3>", unsafe_allow_html=True)
-        
-        r_col.image(nfc_logo_url, width=50)
-        r_col.markdown(f"<p style='text-align: left;'><b>{nfc_choice}</b> ({nfc_win_pct:.1f}%)</p>", unsafe_allow_html=True)
-        
-        st.markdown(f"""
-            <div style="width: 100%; background-color: #eee; border-radius: 5px; height: 25px; display: flex; overflow: hidden; border: 1px solid #ddd;">
-                <div style="width: {afc_win_pct}%; background-color: #003366; height: 25px; border-right: 2px solid white;"></div>
-                <div style="width: {nfc_win_pct}%; background-color: #C60C30; height: 25px;"></div>
-            </div>
-        """, unsafe_allow_html=True)
+    with res_col2:
+        st.image(nfc_logo_url, width=80)
+        st.metric(label=f"{nfc_choice} Win Prob", value=f"{nfc_win_pct:.1f}%")
+        st.metric(label="Projected Score", value=f"{nfc_res.mean():.1f}")
 
-    with col2:
-        st.subheader("Projected Final Score")
-        m_col1, m_col2 = st.columns(2)
-        m_col1.metric(afc_choice, f"{afc_res.mean():.1f}")
-        m_col2.metric(nfc_choice, f"{nfc_res.mean():.1f}")
+    # Probability Bar
+    st.markdown(f"""
+        <div style="width: 100%; background-color: #eee; border-radius: 10px; height: 30px; display: flex; overflow: hidden; border: 1px solid #ddd; margin-top: 20px;">
+            <div style="width: {afc_win_pct}%; background-color: #003366; color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold;">
+                {afc_win_pct:.0f}%
+            </div>
+            <div style="width: {nfc_win_pct}%; background-color: #C60C30; color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold;">
+                {nfc_win_pct:.0f}%
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
     st.divider()
     st.subheader("Point Spread Distribution")
