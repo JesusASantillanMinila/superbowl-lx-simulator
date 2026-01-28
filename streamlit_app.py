@@ -129,25 +129,26 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
     
     with res_col1:
         st.image(afc_logo_url, width=80)
-        st.metric(label=f"{afc_choice} Win Prob", value=f"{afc_win_pct:.1f}%")
         st.metric(label="Projected Score", value=f"{afc_res.mean():.1f}")
-        
+        st.metric(label=f"{afc_choice}\nWin Prob", value=f"{afc_win_pct:.1f}%")
+                
     with res_col_vs:
         st.markdown("<h1 style='text-align: center; margin-top: 50px; color: #888;'>VS</h1>", unsafe_allow_html=True)
         
     with res_col2:
         st.image(nfc_logo_url, width=80)
-        st.metric(label=f"{nfc_choice} Win Prob", value=f"{nfc_win_pct:.1f}%")
         st.metric(label="Projected Score", value=f"{nfc_res.mean():.1f}")
+        st.metric(label=f"{nfc_choice}\nWin Prob", value=f"{nfc_win_pct:.1f}%")
+        
 
     # Probability Bar
     st.markdown(f"""
         <div style="width: 100%; background-color: #eee; border-radius: 10px; height: 30px; display: flex; overflow: hidden; border: 1px solid #ddd; margin-top: 20px;">
             <div style="width: {afc_win_pct}%; background-color: #003366; color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold;">
-                {afc_win_pct:.0f}%
+                
             </div>
             <div style="width: {nfc_win_pct}%; background-color: #C60C30; color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold;">
-                {nfc_win_pct:.0f}%
+                
             </div>
         </div>
     """, unsafe_allow_html=True)
