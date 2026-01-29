@@ -31,7 +31,7 @@ def load_nfl_metadata():
     
     # Merge and calculate total performance
     team_performance = pd.merge(off_epa[['team', 'off_epa_total']], def_epa[['team', 'def_epa_total']], on='team')
-    team_performance['total_epa_calc'] = team_performance['off_epa_total'] + team_performance['def_epa_total']
+    team_performance['total_epa_calc'] = (team_performance['off_epa_total'] * 1.0) + (team_performance['def_epa_total'] * 1.2)
     
     df = pd.merge(
         teams[['team_abbr', 'team_conf', 'team_name', 'team_logo_wikipedia']], 
