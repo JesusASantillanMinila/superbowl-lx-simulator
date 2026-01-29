@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import nflreadpy as nfl 
+import altair as alt
 
 # --- CONFIG & DATA LOAD ---
 st.set_page_config(page_title="Super Bowl LX Simulator", layout="wide")
@@ -163,11 +164,22 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
     st.info(f"Positive values favor {afc_choice}, negative values favor {nfc_choice}.")
     
     spreads = afc_res - nfc_res
-    spread_data = pd.Series(spreads).value_counts().sort_index().reset_index()
-    spread_data.columns = ['Point Spread', 'Frequency']
+    spread_data = pd.DataFrame({'Point Spread': spreads})
     
-    st.bar_chart(
-        spread_data.set_index('Point Spread'), 
-        color="#003366", 
-        use_container_width=True
+    # We use a histogram approach in Altair for a cleaner look
+    chart = alt.Chart(spread_data).mark_bar().encode(
+        x=alt.X('Point Spread:Q', bin=alt.Bin(maxbins=50), title='Point Spread'),
+        y=alt.Y('count()', title='Frequency'),
+        color=alt.condition(
+            alt.datum['Point Spread'] > 0,
+            alt.value('#003366'),  # AFC Color
+            alt.value('#C60C30')   # NFC Color
+        ),
+        tooltip=['count()', 'Point Spread']
+    ).properties(
+        height=400
+    ).configure_view(
+        strokeOpacity=0 # Removes chart border for a cleaner look
     )
+
+    st.altair_chart(chart, use_container_width=True)
