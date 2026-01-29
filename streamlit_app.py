@@ -8,126 +8,101 @@ import altair as alt
 st.set_page_config(page_title="Super Bowl LX Simulator", layout="wide")
 
 @st.cache_data
-def load_nfl_metadata():
-    # 1. Load Teams
+def load_nfl_data():
+    # 1. Load Team Info (Logos/Names)
     teams = nfl.load_teams().to_pandas()
-    teams = teams[teams['team_conf'].isin(['AFC', 'NFC'])]
     
-    # 2. Load Team Stats (Game Level)
-    # nflreadpy load_team_stats returns game-by-team rows
-    stats = nfl.load_team_stats([2025]).to_pandas()
+    # 2. Load 2025 Schedule/Results to calculate true Power Ratings
+    # This contains home_team, away_team, home_score, away_score
+    sched = nfl.load_schedules([2025]).to_pandas()
+    sched = sched[sched['game_type'] == 'REG'] # Stick to regular season for base stats
     
-    # To get defensive EPA, we look at the EPA of the team's opponents
-    # We'll create a summary of EPA gained (Offense) and EPA allowed (Defense)
+    # Calculate Points Scored and Points Allowed for every team
+    home_stats = sched.groupby('home_team').agg({'home_score': 'sum', 'away_score': 'sum', 'home_rest': 'count'}).rename(columns={'home_score': 'pts_scored', 'away_score': 'pts_allowed', 'home_rest': 'games'})
+    away_stats = sched.groupby('away_team').agg({'away_score': 'sum', 'home_score': 'sum', 'away_rest': 'count'}).rename(columns={'away_score': 'pts_scored', 'home_score': 'pts_allowed', 'away_rest': 'games'})
     
-    # Offensive EPA: Sum of EPA gained by the team
-    offense = stats.groupby('team').agg({
-        'passing_epa': 'sum',
-        'rushing_epa': 'sum'
-    }).reset_index()
-    offense.columns = ['team', 'off_pass_epa', 'off_rush_epa']
-
-    # Defensive EPA: This is the EPA gained by the OPPONENTS in those games
-    # We find this by looking at the 'opponent' and their offensive EPA
-    defense = stats.groupby('opponent').agg({
-        'passing_epa': 'sum',
-        'rushing_epa': 'sum'
-    }).reset_index()
-    defense.columns = ['team', 'def_pass_epa', 'def_rush_epa']
-
-    # Merge Offense and Defense
-    team_perf = pd.merge(offense, defense, on='team')
+    # Combine Home and Away stats
+    full_stats = home_stats.add(away_stats, fill_value=0)
+    full_stats['avg_diff'] = (full_stats['pts_scored'] - full_stats['pts_allowed']) / full_stats['games']
     
-    # Net EPA = (Offense) - (Defense)
-    # A high Net EPA means you score a lot AND stop the other team
-    team_perf['net_epa'] = (team_perf['off_pass_epa'] + team_perf['off_rush_epa']) - \
-                           (team_perf['def_pass_epa'] + team_perf['def_rush_epa'])
+    # Merge with team metadata
+    df = pd.merge(teams[['team_abbr', 'team_conf', 'team_name', 'team_logo_wikipedia']], 
+                  full_stats.reset_index(), left_on='team_abbr', right_on='index')
     
-    df = pd.merge(
-        teams[['team_abbr', 'team_conf', 'team_name', 'team_logo_wikipedia']], 
-        team_perf, 
-        left_on='team_abbr', 
-        right_on='team'
-    )
-    
-    # Create a Power Rating (normalized 0.7 to 1.3)
-    # This acts as a multiplier for scoring probability
-    epa_min, epa_max = df['net_epa'].min(), df['net_epa'].max()
-    df['power_rating'] = ((df['net_epa'] - epa_min) / (epa_max - epa_min)) * 0.6 + 0.7
+    # Power Rating based on Point Differential (Normalized 0.8 to 1.2)
+    # This captures the "Seahawks Defense" effect because their pts_allowed is low
+    diff_min, diff_max = df['avg_diff'].min(), df['avg_diff'].max()
+    df['power_rating'] = ((df['avg_diff'] - diff_min) / (diff_max - diff_min)) * 0.4 + 0.8
     
     return df
 
-data = load_nfl_metadata()
+data = load_nfl_data()
 
-st.title(" 🏈 Super Bowl LX: Advanced Simulator")
+st.title(" 🏈 Super Bowl LX: Final Forecast")
 
 # --- UI SETTINGS ---
-with st.expander("🛠️ Simulation Settings & Team Selection", expanded=True):
+with st.expander("🛠️ Simulation Settings", expanded=True):
     col_a, col_b, col_c = st.columns(3)
     
     afc_teams = data[data['team_conf'] == 'AFC'].sort_values('team_name')
     nfc_teams = data[data['team_conf'] == 'NFC'].sort_values('team_name')
     
     with col_a:
-        afc_choice = st.selectbox("AFC Team", afc_teams['team_name'].tolist(), index=afc_teams['team_name'].tolist().index('New England Patriots') if 'New England Patriots' in afc_teams['team_name'].tolist() else 0)
-        nfc_choice = st.selectbox("NFC Team", nfc_teams['team_name'].tolist(), index=nfc_teams['team_name'].tolist().index('Seattle Seahawks') if 'Seattle Seahawks' in nfc_teams['team_name'].tolist() else 0)
+        afc_choice = st.selectbox("AFC Champion", afc_teams['team_name'].tolist(), index=afc_teams['team_name'].tolist().index('New England Patriots') if 'New England Patriots' in afc_teams['team_name'].tolist() else 0)
+        nfc_choice = st.selectbox("NFC Champion", nfc_teams['team_name'].tolist(), index=nfc_teams['team_name'].tolist().index('Seattle Seahawks') if 'Seattle Seahawks' in nfc_teams['team_name'].tolist() else 0)
         
         afc_logo = afc_teams[afc_teams['team_name'] == afc_choice]['team_logo_wikipedia'].values[0]
         nfc_logo = nfc_teams[nfc_teams['team_name'] == nfc_choice]['team_logo_wikipedia'].values[0]
 
-        st.divider()
-        strat_map = {"Defensive": 0.85, "Balanced": 1.0, "Offensive": 1.15}
-        afc_strat = st.select_slider(f"{afc_choice} Style", options=["Defensive", "Balanced", "Offensive"], value="Balanced")
-        nfc_strat = st.select_slider(f"{nfc_choice} Style", options=["Defensive", "Balanced", "Offensive"], value="Balanced")
-
     with col_b:
-        score_afc = st.number_input(f"{afc_choice} Score", 0, 100, 0)
-        score_nfc = st.number_input(f"{nfc_choice} Score", 0, 100, 0)
+        st.write("**Game State**")
         time_left = st.slider("Minutes Remaining", 1, 60, 60)
+        sim_count = st.select_slider("Iterations", options=[1000, 10000, 25000], value=10000)
     
     with col_c:
-        inj_map = {"None": 0.0, "Role": 0.03, "Starter": 0.07, "Star": 0.15, "Elite": 0.30}
-        afc_inj = st.select_slider(f"{afc_choice} Injuries", options=["None", "Role", "Starter", "Star", "Elite"])
-        nfc_inj = st.select_slider(f"{nfc_choice} Injuries", options=["None", "Role", "Starter", "Star", "Elite"])
-        weather_map = {"Clear": 1.0, "Wind/Rain": 0.88, "Snow": 0.82}
-        weather = st.selectbox("Weather", ["Clear", "Wind/Rain", "Snow"])
-        sim_count = st.select_slider("Iterations", options=[1000, 10000, 25000], value=10000)
+        weather_map = {"Dome/Clear": 1.0, "Rain/Wind": 0.85, "Snow": 0.75}
+        weather = st.selectbox("Weather Conditions", list(weather_map.keys()))
+        boost = st.slider("Upsert Momentum Boost (%)", -20, 20, 0) / 100
 
-# --- SIMULATION ---
+# --- SIM ENGINE ---
 afc_p = afc_teams[afc_teams['team_name'] == afc_choice]['power_rating'].values[0]
 nfc_p = nfc_teams[nfc_teams['team_name'] == nfc_choice]['power_rating'].values[0]
 
 def run_sim():
-    base_ppm = 0.42 * weather_map[weather]
-    # Scored points is influenced by your power vs their power
-    afc_rate = base_ppm * (afc_p / nfc_p) * strat_map[afc_strat] * (1 - inj_map[afc_inj])
-    nfc_rate = base_ppm * (nfc_p / afc_p) * strat_map[nfc_strat] * (1 - inj_map[nfc_inj])
+    # Base scoring rate (NFL average is ~0.4 pts per minute)
+    base_ppm = 0.40 * weather_map[weather]
     
-    afc_scores = score_afc + np.random.poisson(afc_rate * time_left, sim_count)
-    nfc_scores = score_nfc + np.random.poisson(nfc_rate * time_left, sim_count)
+    # Calculate relative scoring rates
+    # If nfc_p (Seahawks) is higher than afc_p (Patriots), afc_rate drops
+    afc_rate = base_ppm * (afc_p / nfc_p) * (1 + boost)
+    nfc_rate = base_ppm * (nfc_p / afc_p)
+    
+    afc_scores = np.random.poisson(afc_rate * time_left, sim_count)
+    nfc_scores = np.random.poisson(nfc_rate * time_left, sim_count)
     return afc_scores, nfc_scores
 
-if st.button("🚀 Execute Simulation"):
+if st.button("🚀 Run Monte Carlo Simulation", use_container_width=True):
     afc_res, nfc_res = run_sim()
     afc_win_p = (afc_res > nfc_res).mean() * 100
     nfc_win_p = (nfc_res > afc_res).mean() * 100
 
-    st.markdown("### 🏟️ Final Projection")
+    # Display Results
+    st.markdown("---")
     res_c1, res_vs, res_c2 = st.columns([2, 1, 2])
     
     with res_c1:
-        st.markdown(f"<div style='text-align: right;'><img src='{nfc_logo}' width='100'><h2>{nfc_choice}</h2><h3>Win Prob: {nfc_win_p:.1f}%</h3><p>Avg Score: {nfc_res.mean():.1f}</p></div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align: center;'><img src='{nfc_logo}' width='120'><h2>{nfc_choice}</h2><h1 style='color: #C60C30;'>{nfc_win_p:.1f}%</h1><p>Avg Points: {nfc_res.mean():.1f}</p></div>", unsafe_allow_html=True)
     with res_vs:
-        st.markdown("<h1 style='text-align: center; margin-top: 40px;'>VS</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; margin-top: 80px;'>VS</h1>", unsafe_allow_html=True)
     with res_c2:
-        st.markdown(f"<div style='text-align: left;'><img src='{afc_logo}' width='100'><h2>{afc_choice}</h2><h3>Win Prob: {afc_win_p:.1f}%</h3><p>Avg Score: {afc_res.mean():.1f}</p></div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align: center;'><img src='{afc_logo}' width='120'><h2>{afc_choice}</h2><h1 style='color: #003366;'>{afc_win_p:.1f}%</h1><p>Avg Points: {afc_res.mean():.1f}</p></div>", unsafe_allow_html=True)
 
-    # Chart
+    # Spread Chart
     spreads = afc_res - nfc_res
-    chart_data = pd.DataFrame({'Spread': spreads})
-    hist = alt.Chart(chart_data).mark_bar().encode(
-        x=alt.X('Spread:Q', bin=alt.Bin(maxbins=40), title='Point Spread (Negative = Seahawks Favor)'),
-        y='count()',
+    chart_df = pd.DataFrame({'Spread': spreads})
+    hist = alt.Chart(chart_df).mark_bar().encode(
+        x=alt.X('Spread:Q', bin=alt.Bin(maxbins=30), title='Point Spread (Negative = Seahawks Leader)'),
+        y=alt.Y('count()', title='Frequency'),
         color=alt.condition(alt.datum.Spread > 0, alt.value('#003366'), alt.value('#C60C30'))
-    ).properties(height=350)
+    ).properties(height=300)
     st.altair_chart(hist, use_container_width=True)
