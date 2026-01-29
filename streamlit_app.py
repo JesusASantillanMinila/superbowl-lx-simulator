@@ -12,6 +12,7 @@ def load_nfl_metadata():
     teams = nfl.load_teams().to_pandas()
     teams = teams[teams['team_conf'].isin(['AFC', 'NFC'])]
     
+    # Load 2025 stats
     stats = nfl.load_team_stats([2025]).to_pandas()
     
     # 1. Calculate Offensive EPA
@@ -26,12 +27,14 @@ def load_nfl_metadata():
         'passing_epa': 'sum',
         'rushing_epa': 'sum',
     }).reset_index()
+    # Invert so a low EPA allowed = a positive defensive score
     def_epa['def_epa_total'] = (def_epa['passing_epa'] + def_epa['rushing_epa']) * (-1)
     def_epa = def_epa.rename(columns={'opponent_team': 'team'})
     
-    # Merge and calculate total performance
+    # Merge
     team_performance = pd.merge(off_epa[['team', 'off_epa_total']], def_epa[['team', 'def_epa_total']], on='team')
-    team_performance['total_epa_calc'] = (team_performance['off_epa_total'] * 1.0) + (team_performance['def_epa_total'] * 1.2)
+    
+    team_performance['total_epa_calc'] = (team_performance['off_epa_total'] * 1.0) + (team_performance['def_epa_total'] * 1.25)
     
     df = pd.merge(
         teams[['team_abbr', 'team_conf', 'team_name', 'team_logo_wikipedia']], 
@@ -40,6 +43,7 @@ def load_nfl_metadata():
         right_on='team'
     )
     
+    # Recalculate momentum with the new weighted EPA
     epa_min = df['total_epa_calc'].min()
     epa_max = df['total_epa_calc'].max()
     df['momentum'] = ((df['total_epa_calc'] - epa_min) / (epa_max - epa_min)) * 0.6 + 0.7
@@ -102,12 +106,14 @@ with st.expander("🛠️ Simulation Settings & Team Selection", expanded=True):
         weather_map = {"Clear/Dome": 1.0, "Rain/Wind": 0.85, "Snow": 0.75}
         sim_count = st.select_slider("Simulations to Run", options=[1000, 5000, 10000, 25000, 50000], value=10000)
 
+# Get momentum for selected teams
 afc_mod = afc_teams_df[afc_teams_df['team_name'] == afc_choice]['momentum'].values[0]
 nfc_mod = nfc_teams_df[nfc_teams_df['team_name'] == nfc_choice]['momentum'].values[0]
 
 # --- SIMULATION ENGINE ---
 def run_simulation(iterations):
-    base_ppm = 0.45 * weather_map[weather]
+    # Base Points Per Minute adjusted for 2025 league average
+    base_ppm = 0.42 * weather_map[weather]
     afc_final_rate = base_ppm * afc_mod * strat_map[afc_strat] * (1 - inj_map[afc_inj_lvl])
     nfc_final_rate = base_ppm * nfc_mod * strat_map[nfc_strat] * (1 - inj_map[nfc_inj_lvl])
     
@@ -133,7 +139,6 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
     afc_win_pct = afc_final_wins.mean() * 100
     nfc_win_pct = nfc_final_wins.mean() * 100
 
-    # --- CONSOLIDATED SECTION ---
     st.markdown("### 🏟️ Matchup Forecast")
     
     res_col1, res_col_vs, res_col2 = st.columns([2, 1, 2])
@@ -180,14 +185,10 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
         y=alt.Y('count()', title='Frequency'),
         color=alt.condition(
             alt.datum['Point Spread'] > 0,
-            alt.value('#003366'),  # AFC Color
-            alt.value('#C60C30')   # NFC Color
+            alt.value('#003366'),
+            alt.value('#C60C30')
         ),
         tooltip=['count()', 'Point Spread']
-    ).properties(
-        height=400
-    ).configure_view(
-        strokeOpacity=0 
-    )
+    ).properties(height=400).configure_view(strokeOpacity=0)
 
     st.altair_chart(chart, use_container_width=True)
