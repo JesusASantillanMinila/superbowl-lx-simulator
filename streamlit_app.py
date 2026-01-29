@@ -14,12 +14,24 @@ def load_nfl_metadata():
     
     stats = nfl.load_team_stats([2025]).to_pandas()
     
-    team_performance = stats.groupby('team').agg({
+    # 1. Calculate Offensive EPA
+    off_epa = stats.groupby('team').agg({
         'passing_epa': 'sum',
         'rushing_epa': 'sum',
     }).reset_index()
+    off_epa['off_epa_total'] = off_epa['passing_epa'] + off_epa['rushing_epa']
 
-    team_performance['total_epa_calc'] = team_performance['passing_epa'] + team_performance['rushing_epa']
+    # 2. Calculate Defensive EPA (Points Allowed Logic)
+    def_epa = stats.groupby('opponent_team').agg({
+        'passing_epa': 'sum',
+        'rushing_epa': 'sum',
+    }).reset_index()
+    def_epa['def_epa_total'] = (def_epa['passing_epa'] + def_epa['rushing_epa']) * (-1)
+    def_epa = def_epa.rename(columns={'opponent_team': 'team'})
+    
+    # Merge and calculate total performance
+    team_performance = pd.merge(off_epa[['team', 'off_epa_total']], def_epa[['team', 'def_epa_total']], on='team')
+    team_performance['total_epa_calc'] = team_performance['off_epa_total'] + team_performance['def_epa_total']
     
     df = pd.merge(
         teams[['team_abbr', 'team_conf', 'team_name', 'team_logo_wikipedia']], 
@@ -127,7 +139,6 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
     res_col1, res_col_vs, res_col2 = st.columns([2, 1, 2])
     
     with res_col1:
-        # Right-aligning all content to push it toward the VS
         st.markdown(f"""
             <div style="text-align: right;">
                 <img src="{nfc_logo_url}" width="100">
@@ -141,7 +152,6 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
         st.markdown("<h1 style='text-align: center; margin-top: 60px; color: #888;'>VS</h1>", unsafe_allow_html=True)
         
     with res_col2:
-        # Standard left-align for the opponent
         st.markdown(f"""
             <div style="text-align: left;">
                 <img src="{afc_logo_url}" width="100">
@@ -151,7 +161,6 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
             </div>
         """, unsafe_allow_html=True)
 
-    # Clean Progress Bar (No Text)
     st.markdown(f"""
         <div style="width: 100%; background-color: #eee; border-radius: 10px; height: 15px; display: flex; overflow: hidden; border: 1px solid #ddd; margin-top: 25px; margin-bottom: 10px;">
             <div style="width: {nfc_win_pct}%; background-color: #C60C30;"></div>
@@ -166,7 +175,6 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
     spreads = afc_res - nfc_res
     spread_data = pd.DataFrame({'Point Spread': spreads})
     
-    # We use a histogram approach in Altair for a cleaner look
     chart = alt.Chart(spread_data).mark_bar().encode(
         x=alt.X('Point Spread:Q', bin=alt.Bin(maxbins=50), title='Point Spread'),
         y=alt.Y('count()', title='Frequency'),
@@ -179,7 +187,7 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
     ).properties(
         height=400
     ).configure_view(
-        strokeOpacity=0 # Removes chart border for a cleaner look
+        strokeOpacity=0 
     )
 
     st.altair_chart(chart, use_container_width=True)
