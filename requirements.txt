@@ -2,3 +2,4 @@ streamlit
 nflreadpy
 numpy
 pandas
+altair
