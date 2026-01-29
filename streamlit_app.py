@@ -9,29 +9,33 @@ st.set_page_config(page_title="Super Bowl LX Simulator", layout="wide")
 
 @st.cache_data
 def load_nfl_metadata():
-    # Load team info
     teams = nfl.load_teams().to_pandas()
     teams = teams[teams['team_conf'].isin(['AFC', 'NFC'])]
     
-    # Load 2025 Team Stats
+    # Load 2025 Stats
     stats = nfl.load_team_stats([2025]).to_pandas()
     
-    # AGGREGATE OFFENSE AND DEFENSE
-    # In nflverse, defensive stats are often found in 'opp_' columns for team summaries
-    team_performance = stats.groupby('team').agg({
-        'passing_epa': 'sum',     # Points gained via passing
-        'rushing_epa': 'sum',     # Points gained via rushing
-        'opp_passing_epa': 'sum', # Points allowed via pass defense
-        'opp_rushing_epa': 'sum'  # Points allowed via rush defense
+    # 1. Offensive EPA (Points Scored Logic)
+    off_epa = stats.groupby('team').agg({
+        'passing_epa': 'sum',
+        'rushing_epa': 'sum',
     }).reset_index()
+    off_epa['off_epa_total'] = off_epa['passing_epa'] + off_epa['rushing_epa']
 
-    # Calculate Efficiency Metrics
-    team_performance['off_epa'] = team_performance['passing_epa'] + team_performance['rushing_epa']
-    team_performance['def_epa'] = team_performance['opp_passing_epa'] + team_performance['opp_rushing_epa']
+    # 2. Defensive EPA (Points Allowed Logic - Inverse for Strength)
+    def_epa = stats.groupby('opponent_team').agg({
+        'passing_epa': 'sum',
+        'rushing_epa': 'sum',
+    }).reset_index()
+    # Note: High defensive EPA allowed is bad, so we multiply by -1 
+    # so that a "higher" number represents a "better" defense.
+    def_epa['def_epa_total'] = (def_epa['passing_epa'] + def_epa['rushing_epa']) * (-1)
+    def_epa = def_epa.rename(columns={'opponent_team': 'team'})
     
-    # Net EPA: Higher is better. (Good offense is +, Good defense is -)
-    team_performance['net_epa'] = team_performance['off_epa'] - team_performance['def_epa']
-    
+    # Merge Stats
+    team_performance = pd.merge(off_epa[['team', 'off_epa_total']], 
+                                def_epa[['team', 'def_epa_total']], on='team')
+
     df = pd.merge(
         teams[['team_abbr', 'team_conf', 'team_name', 'team_logo_wikipedia']], 
         team_performance, 
@@ -39,10 +43,11 @@ def load_nfl_metadata():
         right_on='team'
     )
     
-    # Normalize Net EPA for a "Power Rating" (0.7 to 1.3 scale)
-    epa_min = df['net_epa'].min()
-    epa_max = df['net_epa'].max()
-    df['power_rating'] = ((df['net_epa'] - epa_min) / (epa_max - epa_min)) * 0.6 + 0.7
+    # Normalize Momentum (Combining Offense and Defense)
+    df['total_epa_calc'] = df['off_epa_total'] + df['def_epa_total']
+    epa_min = df['total_epa_calc'].min()
+    epa_max = df['total_epa_calc'].max()
+    df['momentum'] = ((df['total_epa_calc'] - epa_min) / (epa_max - epa_min)) * 0.6 + 0.7
     
     return df
 
@@ -70,6 +75,7 @@ with st.expander("🛠️ Simulation Settings & Team Selection", expanded=True):
         afc_choice = st.selectbox("Select AFC Champion", afc_list, index=pats_idx)
         nfc_choice = st.selectbox("Select NFC Champion", nfc_list, index=sea_idx)
 
+        # --- EXTRACT TEAM DATA ---
         afc_data = afc_teams_df[afc_teams_df['team_name'] == afc_choice].iloc[0]
         nfc_data = nfc_teams_df[nfc_teams_df['team_name'] == nfc_choice].iloc[0]
         
@@ -98,23 +104,33 @@ with st.expander("🛠️ Simulation Settings & Team Selection", expanded=True):
 
 # --- SIMULATION ENGINE ---
 def run_simulation(iterations):
-    # Base league scoring (approx 0.4 points per minute)
-    base_rate = 0.42 * weather_map[weather]
+    # base_ppm is the league average points per minute (~0.45)
+    base_ppm = 0.45 * weather_map[weather]
     
-    # SCORING RATE CALCULATION:
-    # A team's scoring rate is: Base * (Their Offense / Opponent Defense)
-    # Since higher net_epa is better, we use the power_rating as a multiplier
-    # We factor in that Seattle's defense (NFC) will suppress New England's (AFC) offense.
+    # LOGIC: Team A's scoring rate depends on (Team A Offense + Team B Defense)
+    # We use the momentum/EPA as a multiplier against the league base.
     
-    afc_rate = base_rate * (afc_data['power_rating'] / nfc_data['power_rating']) * strat_map[afc_strat] * (1 - inj_map[afc_inj])
-    nfc_rate = base_rate * (nfc_data['power_rating'] / afc_data['power_rating']) * strat_map[nfc_strat] * (1 - inj_map[nfc_inj])
+    # AFC Scoring Rate = Base * AFC Offense * NFC Defense Influence
+    # Since we normalized 'momentum' already, we can use the individual components
+    # or the weighted average. Here we use the specific matchups:
     
-    # Monte Carlo Poisson sampling
-    afc_sim = score_afc + np.random.poisson(max(0.1, afc_rate) * time_left, iterations)
-    nfc_sim = score_nfc + np.random.poisson(max(0.1, nfc_rate) * time_left, iterations)
-    
-    return afc_sim, nfc_sim
+    def get_matchup_mod(off_team, def_team):
+        # Combining Offense of one and Defense of another
+        # We normalize these relative to the mean to get a multiplier
+        off_mod = 1 + (off_team['off_epa_total'] / data['off_epa_total'].abs().max()) * 0.2
+        def_mod = 1 + (def_team['def_epa_total'] / data['def_epa_total'].abs().max()) * 0.2
+        return (off_mod + def_mod) / 2
 
+    afc_matchup_mod = get_matchup_mod(afc_data, nfc_data)
+    nfc_matchup_mod = get_matchup_mod(nfc_data, afc_data)
+
+    afc_final_rate = base_ppm * afc_matchup_mod * strat_map[afc_strat] * (1 - inj_map[afc_inj_lvl])
+    nfc_final_rate = base_ppm * nfc_matchup_mod * strat_map[nfc_strat] * (1 - inj_map[nfc_inj_lvl])
+    
+    afc_sim = score_afc + np.random.poisson(afc_final_rate * time_left, iterations)
+    nfc_sim = score_nfc + np.random.poisson(nfc_final_rate * time_left, iterations)
+    return afc_sim, nfc_sim
+    
 # --- RESULTS ---
 if st.button(f"🚀 Simulate Super Bowl LX", use_container_width=True):
     afc_res, nfc_res = run_simulation(sim_count)
