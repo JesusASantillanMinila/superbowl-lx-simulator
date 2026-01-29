@@ -9,17 +9,30 @@ st.set_page_config(page_title="Super Bowl LX Simulator", layout="wide")
 
 @st.cache_data
 def load_nfl_metadata():
+    # Load basic team info
     teams = nfl.load_teams().to_pandas()
     teams = teams[teams['team_conf'].isin(['AFC', 'NFC'])]
     
+    # Load 2025 Stats
     stats = nfl.load_team_stats([2025]).to_pandas()
     
+    # Aggregate both Offensive AND Defensive EPA
     team_performance = stats.groupby('team').agg({
-        'passing_epa': 'sum',
-        'rushing_epa': 'sum',
+        'passing_epa': 'mean',     
+        'rushing_epa': 'mean',
+        'def_passing_epa': 'mean', 
+        'def_rushing_epa': 'mean'
     }).reset_index()
 
-    team_performance['total_epa_calc'] = team_performance['passing_epa'] + team_performance['rushing_epa']
+    # Calculate Strengths
+    # Offensive strength: How much you score
+    team_performance['off_epa'] = team_performance['passing_epa'] + team_performance['rushing_epa']
+    # Defensive strength: How much you stop scoring (Negative is better)
+    team_performance['def_epa'] = team_performance['def_passing_epa'] + team_performance['def_rushing_epa']
+    
+    # Net EPA for "Momentum" (Offense - Defense)
+    # A team with +0.10 Offense and -0.05 Defense (Elite) = +0.15 Net
+    team_performance['net_epa'] = team_performance['off_epa'] - team_performance['def_epa']
     
     df = pd.merge(
         teams[['team_abbr', 'team_conf', 'team_name', 'team_logo_wikipedia']], 
@@ -28,17 +41,17 @@ def load_nfl_metadata():
         right_on='team'
     )
     
-    epa_min = df['total_epa_calc'].min()
-    epa_max = df['total_epa_calc'].max()
-    df['momentum'] = ((df['total_epa_calc'] - epa_min) / (epa_max - epa_min)) * 0.6 + 0.7
+    # Normalize Momentum based on Net EPA
+    epa_min, epa_max = df['net_epa'].min(), df['net_epa'].max()
+    df['momentum'] = ((df['net_epa'] - epa_min) / (epa_max - epa_min)) * 0.6 + 0.7
     
     return df
 
 data = load_nfl_metadata()
 
+# --- UI --- 
 st.title(" 🏈 Super Bowl LX: Advanced Simulator")
 
-# --- 1) TOP EXPANDER ---
 with st.expander("🛠️ Simulation Settings & Team Selection", expanded=True):
     col_a, col_b, col_c = st.columns(3)
     
@@ -48,23 +61,19 @@ with st.expander("🛠️ Simulation Settings & Team Selection", expanded=True):
     afc_list = afc_teams_df['team_name'].tolist()
     nfc_list = nfc_teams_df['team_name'].tolist()
     
-    try:
-        pats_idx = afc_list.index('New England Patriots')
-    except ValueError:
-        pats_idx = 0
-        
-    try:
-        sea_idx = nfc_list.index('Seattle Seahawks')
-    except ValueError:
-        sea_idx = 0
+    pats_idx = afc_list.index('New England Patriots') if 'New England Patriots' in afc_list else 0
+    sea_idx = nfc_list.index('Seattle Seahawks') if 'Seattle Seahawks' in nfc_list else 0
     
     with col_a:
         st.markdown("**The Matchup**")
         afc_choice = st.selectbox("Select AFC Champion", afc_list, index=pats_idx)
         nfc_choice = st.selectbox("Select NFC Champion", nfc_list, index=sea_idx)
+        
+        afc_data = afc_teams_df[afc_teams_df['team_name'] == afc_choice].iloc[0]
+        nfc_data = nfc_teams_df[nfc_teams_df['team_name'] == nfc_choice].iloc[0]
 
-        afc_logo_url = afc_teams_df[afc_teams_df['team_name'] == afc_choice]['team_logo_wikipedia'].values[0]
-        nfc_logo_url = nfc_teams_df[nfc_teams_df['team_name'] == nfc_choice]['team_logo_wikipedia'].values[0]
+        afc_logo_url = afc_data['team_logo_wikipedia']
+        nfc_logo_url = nfc_data['team_logo_wikipedia']
         
         st.divider()
         st.markdown("**Strategy**")
@@ -86,18 +95,21 @@ with st.expander("🛠️ Simulation Settings & Team Selection", expanded=True):
 
         st.divider()
         st.markdown("**Environment**")
-        weather = st.selectbox("Weather Conditions", ["Clear/Dome", "Rain/Wind", "Snow"])
         weather_map = {"Clear/Dome": 1.0, "Rain/Wind": 0.85, "Snow": 0.75}
-        sim_count = st.select_slider("Simulations to Run", options=[1000, 5000, 10000, 25000, 50000], value=10000)
+        weather = st.selectbox("Weather Conditions", list(weather_map.keys()))
+        sim_count = st.select_slider("Simulations to Run", options=[1000, 5000, 10000], value=10000)
 
-afc_mod = afc_teams_df[afc_teams_df['team_name'] == afc_choice]['momentum'].values[0]
-nfc_mod = nfc_teams_df[nfc_teams_df['team_name'] == nfc_choice]['momentum'].values[0]
-
-# --- SIMULATION ENGINE ---
+# --- NEW SIMULATION ENGINE ---
 def run_simulation(iterations):
+    # Base PPM (Points Per Minute)
     base_ppm = 0.45 * weather_map[weather]
-    afc_final_rate = base_ppm * afc_mod * strat_map[afc_strat] * (1 - inj_map[afc_inj_lvl])
-    nfc_final_rate = base_ppm * nfc_mod * strat_map[nfc_strat] * (1 - inj_map[nfc_inj_lvl])
+    
+    # LOGIC: A's scoring = (A's Offense Efficiency - B's Defense Efficiency)
+    afc_eff = (afc_data['off_epa'] - nfc_data['def_epa']) * 5 + 1.0
+    nfc_eff = (nfc_data['off_epa'] - afc_data['def_epa']) * 5 + 1.0
+    
+    afc_final_rate = base_ppm * afc_eff * strat_map[afc_strat] * (1 - inj_map[afc_inj_lvl])
+    nfc_final_rate = base_ppm * nfc_eff * strat_map[nfc_strat] * (1 - inj_map[nfc_inj_lvl])
     
     afc_sim = score_afc + np.random.poisson(afc_final_rate * time_left, iterations)
     nfc_sim = score_nfc + np.random.poisson(nfc_final_rate * time_left, iterations)
@@ -107,79 +119,21 @@ def run_simulation(iterations):
 if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
     afc_res, nfc_res = run_simulation(sim_count)
     
-    afc_raw_wins = (afc_res > nfc_res)
-    nfc_raw_wins = (nfc_res > afc_res)
-    ties = (afc_res == nfc_res)
+    afc_win_pct = (afc_res > nfc_res).mean() * 100
+    nfc_win_pct = (nfc_res > afc_res).mean() * 100
     
-    total_momentum = afc_mod + nfc_mod
-    afc_weight = afc_mod / total_momentum
-    
-    tie_breaker = np.random.random(sim_count) < afc_weight
-    afc_final_wins = afc_raw_wins | (ties & tie_breaker)
-    nfc_final_wins = nfc_raw_wins | (ties & ~tie_breaker)
-    
-    afc_win_pct = afc_final_wins.mean() * 100
-    nfc_win_pct = nfc_final_wins.mean() * 100
-
-    # --- CONSOLIDATED SECTION ---
     st.markdown("### 🏟️ Matchup Forecast")
-    
     res_col1, res_col_vs, res_col2 = st.columns([2, 1, 2])
     
     with res_col1:
-        # Right-aligning all content to push it toward the VS
-        st.markdown(f"""
-            <div style="text-align: right;">
-                <img src="{nfc_logo_url}" width="100">
-                <h2 style="margin: 0;">{nfc_choice}</h2>
-                <p style="font-size: 24px; margin: 0;"><b>Projected Score: {nfc_res.mean():.1f}</b></p>
-                <p style="font-size: 18px; color: #555;">Win Probability: {nfc_win_pct:.1f}%</p>
-            </div>
-        """, unsafe_allow_html=True)
-        
+        st.markdown(f'<div style="text-align: right;"><img src="{nfc_logo_url}" width="100"><h2 style="margin:0;">{nfc_choice}</h2><p style="font-size:24px;"><b>Score: {nfc_res.mean():.1f}</b></p><p>Win: {nfc_win_pct:.1f}%</p></div>', unsafe_allow_html=True)
     with res_col_vs:
         st.markdown("<h1 style='text-align: center; margin-top: 60px; color: #888;'>VS</h1>", unsafe_allow_html=True)
-        
     with res_col2:
-        # Standard left-align for the opponent
-        st.markdown(f"""
-            <div style="text-align: left;">
-                <img src="{afc_logo_url}" width="100">
-                <h2 style="margin: 0;">{afc_choice}</h2>
-                <p style="font-size: 24px; margin: 0;"><b>Projected Score: {afc_res.mean():.1f}</b></p>
-                <p style="font-size: 18px; color: #555;">Win Probability: {afc_win_pct:.1f}%</p>
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div style="text-align: left;"><img src="{afc_logo_url}" width="100"><h2 style="margin:0;">{afc_choice}</h2><p style="font-size:24px;"><b>Score: {afc_res.mean():.1f}</b></p><p>Win: {afc_win_pct:.1f}%</p></div>', unsafe_allow_html=True)
 
-    # Clean Progress Bar (No Text)
-    st.markdown(f"""
-        <div style="width: 100%; background-color: #eee; border-radius: 10px; height: 15px; display: flex; overflow: hidden; border: 1px solid #ddd; margin-top: 25px; margin-bottom: 10px;">
-            <div style="width: {nfc_win_pct}%; background-color: #C60C30;"></div>
-            <div style="width: {afc_win_pct}%; background-color: #003366;"></div>
-        </div>
-    """, unsafe_allow_html=True)
-
-    st.divider()
-    st.subheader("Point Spread Distribution")
-    st.info(f"Negative values favor {nfc_choice}, positive values favor {afc_choice}.")
-    
-    spreads = afc_res - nfc_res
-    spread_data = pd.DataFrame({'Point Spread': spreads})
-    
-    # We use a histogram approach in Altair for a cleaner look
-    chart = alt.Chart(spread_data).mark_bar().encode(
-        x=alt.X('Point Spread:Q', bin=alt.Bin(maxbins=50), title='Point Spread'),
-        y=alt.Y('count()', title='Frequency'),
-        color=alt.condition(
-            alt.datum['Point Spread'] > 0,
-            alt.value('#003366'),  # AFC Color
-            alt.value('#C60C30')   # NFC Color
-        ),
-        tooltip=['count()', 'Point Spread']
-    ).properties(
-        height=400
-    ).configure_view(
-        strokeOpacity=0 # Removes chart border for a cleaner look
-    )
-
-    st.altair_chart(chart, use_container_width=True)
+    # Simple Progress Bar
+    st.markdown(f"""<div style="width: 100%; background-color: #eee; border-radius: 10px; height: 15px; display: flex; overflow: hidden; margin-top: 25px;">
+            <div style="width: {nfc_win_pct}%; background-color: #002244;"></div>
+            <div style="width: {afc_win_pct}%; background-color: #C60C30;"></div>
+        </div>""", unsafe_allow_html=True)
