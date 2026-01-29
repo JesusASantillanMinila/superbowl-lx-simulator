@@ -12,7 +12,7 @@ def load_nfl_metadata():
     teams = nfl.load_teams().to_pandas()
     teams = teams[teams['team_conf'].isin(['AFC', 'NFC'])]
     
-    stats = nfl.load_team_stats([2024]).to_pandas()
+    stats = nfl.load_team_stats([2025]).to_pandas()
     
     team_performance = stats.groupby('team').agg({
         'passing_epa': 'sum',
