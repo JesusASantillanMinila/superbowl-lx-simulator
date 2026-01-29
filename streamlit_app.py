@@ -130,10 +130,10 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
         # Right-aligning all content to push it toward the VS
         st.markdown(f"""
             <div style="text-align: right;">
-                <img src="{afc_logo_url}" width="100">
-                <h2 style="margin: 0;">{afc_choice}</h2>
-                <p style="font-size: 24px; margin: 0;"><b>Projected Score: {afc_res.mean():.1f}</b></p>
-                <p style="font-size: 18px; color: #555;">Win Probability: {afc_win_pct:.1f}%</p>
+                <img src="{nfc_logo_url}" width="100">
+                <h2 style="margin: 0;">{nfc_choice}</h2>
+                <p style="font-size: 24px; margin: 0;"><b>Projected Score: {nfc_res.mean():.1f}</b></p>
+                <p style="font-size: 18px; color: #555;">Win Probability: {nfc_win_pct:.1f}%</p>
             </div>
         """, unsafe_allow_html=True)
         
@@ -144,24 +144,24 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
         # Standard left-align for the opponent
         st.markdown(f"""
             <div style="text-align: left;">
-                <img src="{nfc_logo_url}" width="100">
-                <h2 style="margin: 0;">{nfc_choice}</h2>
-                <p style="font-size: 24px; margin: 0;"><b>Projected Score: {nfc_res.mean():.1f}</b></p>
-                <p style="font-size: 18px; color: #555;">Win Probability: {nfc_win_pct:.1f}%</p>
+                <img src="{afc_logo_url}" width="100">
+                <h2 style="margin: 0;">{afc_choice}</h2>
+                <p style="font-size: 24px; margin: 0;"><b>Projected Score: {afc_res.mean():.1f}</b></p>
+                <p style="font-size: 18px; color: #555;">Win Probability: {afc_win_pct:.1f}%</p>
             </div>
         """, unsafe_allow_html=True)
 
     # Clean Progress Bar (No Text)
     st.markdown(f"""
         <div style="width: 100%; background-color: #eee; border-radius: 10px; height: 15px; display: flex; overflow: hidden; border: 1px solid #ddd; margin-top: 25px; margin-bottom: 10px;">
-            <div style="width: {afc_win_pct}%; background-color: #003366;"></div>
             <div style="width: {nfc_win_pct}%; background-color: #C60C30;"></div>
+            <div style="width: {afc_win_pct}%; background-color: #003366;"></div>
         </div>
     """, unsafe_allow_html=True)
 
     st.divider()
     st.subheader("Point Spread Distribution")
-    st.info(f"Positive values favor {afc_choice}, negative values favor {nfc_choice}.")
+    st.info(f"Negative values favor {nfc_choice}, positive values favor {afc_choice}.")
     
     spreads = afc_res - nfc_res
     spread_data = pd.DataFrame({'Point Spread': spreads})
