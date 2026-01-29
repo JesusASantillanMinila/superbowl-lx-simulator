@@ -148,10 +148,26 @@ if st.button(f"🚀 Run Super Bowl Simulation", use_container_width=True):
     st.markdown(f'<div style="width:100%; background-color:#eee; border-radius:10px; height:15px; display:flex; overflow:hidden; margin-top:25px;"><div style="width:{nfc_win_pct}%; background-color:#C60C30;"></div><div style="width:{afc_win_pct}%; background-color:#003366;"></div></div>', unsafe_allow_html=True)
 
     st.divider()
+    st.subheader("Point Spread Distribution")
+    st.info(f"Negative values favor {nfc_choice}, positive values favor {afc_choice}.")
+    
     spreads = afc_res - nfc_res
-    chart = alt.Chart(pd.DataFrame({'Point Spread': spreads})).mark_bar().encode(
-        x=alt.X('Point Spread:Q', bin=alt.Bin(maxbins=50)),
-        y='count()',
-        color=alt.condition(alt.datum['Point Spread'] > 0, alt.value('#003366'), alt.value('#C60C30'))
-    ).properties(height=400)
+    spread_data = pd.DataFrame({'Point Spread': spreads})
+    
+    # We use a histogram approach in Altair for a cleaner look
+    chart = alt.Chart(spread_data).mark_bar().encode(
+        x=alt.X('Point Spread:Q', bin=alt.Bin(maxbins=50), title='Point Spread'),
+        y=alt.Y('count()', title='Frequency'),
+        color=alt.condition(
+            alt.datum['Point Spread'] > 0,
+            alt.value('#003366'),  # AFC Color
+            alt.value('#C60C30')   # NFC Color
+        ),
+        tooltip=['count()', 'Point Spread']
+    ).properties(
+        height=400
+    ).configure_view(
+        strokeOpacity=0 # Removes chart border for a cleaner look
+    )
+
     st.altair_chart(chart, use_container_width=True)
