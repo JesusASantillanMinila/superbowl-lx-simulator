@@ -82,6 +82,10 @@ with st.expander("🛠️ Simulation Settings & Team Selection", expanded=True):
         score_afc = st.number_input(f"{afc_choice} Current Score", 0, 100, 0)
         score_nfc = st.number_input(f"{nfc_choice} Current Score", 0, 100, 0)
         time_left = st.slider("Minutes Remaining", 1, 60, 60)
+
+        st.divider()
+        st.markdown("**Monte Carlo Simulation**")        
+        sim_count = st.select_slider("Simulations to Run", options=[1000, 5000, 10000, 25000, 50000], value=10000)
     
     with col_c:
         st.markdown("**Injury Report**")
@@ -93,7 +97,7 @@ with st.expander("🛠️ Simulation Settings & Team Selection", expanded=True):
         st.markdown("**Environment**")
         weather = st.selectbox("Weather Conditions", ["Clear/Dome", "Rain/Wind", "Snow"])
         weather_map = {"Clear/Dome": 1.0, "Rain/Wind": 0.85, "Snow": 0.75}
-        sim_count = st.select_slider("Simulations to Run", options=[1000, 5000, 10000, 25000, 50000], value=10000)
+        
 
 # Pull final stats for simulation
 afc_mod = afc_teams_df[afc_teams_df['team_name'] == afc_choice]['momentum'].values[0]
