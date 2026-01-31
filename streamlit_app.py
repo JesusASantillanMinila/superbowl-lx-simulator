@@ -5,7 +5,11 @@ import nflreadpy as nfl
 import altair as alt
 
 # --- CONFIG & DATA LOAD ---
-st.set_page_config(page_title="Super Bowl LX Simulator", layout="wide")
+st.set_page_config(
+    page_title="Super Bowl LX Simulator",
+    page_icon="🏈",  # This helps browsers and some crawlers identify the site
+    layout="wide"
+)
 
 @st.cache_data
 def load_nfl_metadata():
