@@ -49,7 +49,7 @@ def load_nfl_metadata():
 
 data = load_nfl_metadata()
 
-st.title(" 🏈 Super Bowl LX: Advanced Simulator")
+st.title("Super Bowl LX: Advanced Simulator")
 
 # --- 1) TOP EXPANDER ---
 with st.expander("🛠️ Simulation Settings & Team Selection", expanded=True):
