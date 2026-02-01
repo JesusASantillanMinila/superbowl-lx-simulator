@@ -11,6 +11,18 @@ st.set_page_config(
     layout="wide"
 )
 
+st.markdown(
+    f"""
+    <head>
+        <meta property="og:title" content="Super Bowl LX Simulator" />
+        <meta property="og:description" content="Advanced Monte Carlo simulations for Super Bowl LX using real 2025 NFL data." />
+        <meta property="og:url" content="https://superbowl-lx-simulator-jzrcb8vhxh4gapijokakkr.streamlit.app/" />
+        <meta property="og:type" content="website" />
+    </head>
+    """,
+    unsafe_allow_html=True,
+)
+
 @st.cache_data
 def load_nfl_metadata():
     teams = nfl.load_teams().to_pandas()
