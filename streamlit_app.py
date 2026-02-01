@@ -64,7 +64,7 @@ data = load_nfl_metadata()
 st.title("Super Bowl LX: Advanced Simulator")
 
 # --- 1) TOP EXPANDER ---
-with st.expander("🛠️ Simulation Settings & Team Selection", expanded=True):
+with st.expander("🛠️ Simulation Settings & Team Selection", expanded=False):
     col_a, col_b, col_c = st.columns(3)
     
     afc_teams_df = data[data['team_conf'] == 'AFC'].sort_values('team_name')
