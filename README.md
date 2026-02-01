@@ -9,5 +9,3 @@ NFL simulation engine utilizing Poisson distribution modeling to forecast game o
     * Adjusts for **environmental scalars** (weather) and **personnel availability** (injury severity scalars).
 * **Visualization:** Interactive point-spread frequency distribution rendered via **Altair**.
 
-### Dependencies
-`streamlit`, `numpy`, `pandas`, `nflreadpy`, `altair`
