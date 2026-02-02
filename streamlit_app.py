@@ -16,6 +16,7 @@ st.markdown(
     <head>
         <meta property="og:title" content="Super Bowl LX Simulator" />
         <meta property="og:description" content="Advanced Monte Carlo simulations for Super Bowl LX using real 2025 NFL data." />
+        <meta property="og:image" content="https://github.com/JesusASantillanMinila/superbowl-lx-simulator/blob/main/superbowl-xl-simulator.JPG" />
         <meta property="og:url" content="https://superbowl-lx-simulator-jzrcb8vhxh4gapijokakkr.streamlit.app/" />
         <meta property="og:type" content="website" />
     </head>
